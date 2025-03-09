@@ -1,32 +1,572 @@
-# Prerequisites
-*.d
+#include <iostream>
+#include <vector>
+#include <string>
+#include <limits>
+#include <algorithm>
+#include <queue>
+#include <sstream>
+#include <cctype>
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+using namespace std;
 
-# Precompiled Headers
-*.gch
-*.pch
+class Book {
+public:
+    string name, author;
+    int id;
+    int quantity;
+    int borrowedCount;
+    queue<int> reservationQueue;
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
+    Book(const string& name, const string& author, int id, int quantity)
+        : name(name), author(author), id(id), quantity(quantity), borrowedCount(0) {}
 
-# Fortran module files
-*.mod
-*.smod
+    bool isBorrowed() const {
+        return borrowedCount >= quantity;
+    }
 
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
+    int availableQuantity() const {
+        return quantity - borrowedCount;
+    }
+};
 
-# Executables
-*.exe
-*.out
-*.app
+class Student {
+public:
+    string name;
+    int studentId, bookId;
+    bool returned;
+
+    Student(const string& name, int studentId, int bookId)
+        : name(name), studentId(studentId), bookId(bookId), returned(false) {}
+};
+
+class LibraryManagementSystem {
+private:
+    vector<Book> books;
+    vector<Student> students;
+    string loggedInUser;
+    int loggedInId;
+    bool isAdmin;
+    const string adminUser = "Admin";
+    const string adminPass = "051904";
+    vector<pair<string, int>> loginHistory;
+
+    void waitForKey() {
+        cout << "\nPress Enter to continue...";
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    }
+    void clearScreen() {
+#ifdef _WIN32
+        system("cls");
+#else
+        system("clear");
+#endif
+    }
+
+    Book* findBookById(int id) {
+        for (auto& book : books) {
+            if (book.id == id) {
+                return &book;
+            }
+        }
+        return nullptr;
+    }
+
+public:
+    LibraryManagementSystem() {
+        initializeLibrary();
+    }
+
+    void initializeLibrary() {
+        books = {
+            {"My Struggle: Achieving a Generalist Mindset", "PJ Alfeche", 100, 6},
+            {"Calculus: A Quick Guide for Beginners", "Chris Kam", 101, 3},
+            {"How To Basics: Making a Strategic Mind", "Norberto Ayat III", 102, 7},
+            {"Physics: Understanding Quantum Mechanics", "Crystel Mataac", 103, 2}
+        };
+    }
+
+    void login() {
+        clearScreen();
+        string userType;
+        cout << "Login as Admin or Student? (admin/student): ";
+        getline(cin, userType);
+
+        if (userType == "admin") {
+            string username, password;
+            cout << "Enter Admin Username: ";
+            getline(cin, username);
+            cout << "Enter Admin Password: ";
+            getline(cin, password);
+
+            if (username == adminUser && password == adminPass) {
+                loggedInUser = adminUser;
+                loggedInId = 0;
+                isAdmin = true;
+                cout << "\nWelcome, Admin!";
+                loginHistory.push_back({loggedInUser, loggedInId});
+                clearScreen();
+            } else {
+                cout << "\nAdmin Login Failed. Incorrect credentials.";
+                isAdmin = false;
+                loggedInUser = "";
+                loggedInId = 0;
+                waitForKey();
+                login();
+                return;
+            }
+        } else if (userType == "student") {
+            cout << "\nEnter your Name: ";
+            getline(cin, loggedInUser);
+            cout << "Enter your Student ID: ";
+            cin >> loggedInId;
+            cin.ignore();
+            cout << "\nWelcome, " << loggedInUser << "!";
+            isAdmin = false;
+            loginHistory.push_back({loggedInUser, loggedInId});
+            clearScreen();
+        } else {
+            cout << "\nInvalid user type. Please enter 'admin' or 'student'.";
+            waitForKey();
+            login();
+            return;
+        }
+    }
+
+    void logout() {
+        cout << "\nLogging out...";
+        loggedInUser = "";
+        loggedInId = 0;
+        isAdmin = false;
+        clearScreen();
+        login();
+    }
+
+    void mainMenu() {
+        string choiceStr;
+        int choice = 0;
+
+        do {
+            cout << "\n\t********** MAIN MENU **********\n";
+            if (isAdmin) {
+                cout << "\t1. Add Book\n";
+                cout << "\t2. Remove Book\n";
+                cout << "\t3. View Books\n";
+                cout << "\t4. View Student Records\n";
+                cout << "\t5. View Login History\n";
+                cout << "\t6. Logout\n";
+                cout << "\t7. Exit\n";
+            } else {
+                cout << "\t1. Borrow a Book\n";
+                cout << "\t2. Return a Book\n";
+                cout << "\t3. View Available Books\n";
+                cout << "\t4. Student Records\n";
+                cout << "\t5. Reserve a Book\n";
+                cout << "\t6. Logout\n";
+                cout << "\t7. Exit\n";
+            }
+            cout << "\tEnter your choice: ";
+            getline(cin, choiceStr);
+
+            if (choiceStr == "/b") {
+                cout << "\nInvalid Option!";
+                choice = -1;
+            } else {
+                stringstream ss(choiceStr);
+                ss >> choice;
+                if (ss.fail()) {
+                    choice = -1;
+                }
+            }
+
+
+            switch (choice) {
+            case 1:
+                isAdmin ? addBook() : borrowBook();
+                break;
+            case 2:
+                isAdmin ? removeBook() : returnBook();
+                break;
+            case 3:
+                isAdmin ? viewBooks() : viewAvailableBooks();
+                break;
+            case 4:
+                isAdmin ? displayStudentRecords() : displayStudentRecords();
+                break;
+            case 5:
+                isAdmin ? viewLoginHistory() : reserveBook();
+                break;
+            case 6:
+                isAdmin ? logout() : logout();
+                break;
+            case 7:
+                if(isAdmin) {
+                    cout << "\nExiting... Thank you!\n";
+                    exit(0);
+                }
+                else {
+                    cout << "\nExiting... Thank you!\n";
+                    exit(0);
+                };
+                break;
+            default:
+                if (choice != -1) cout << "\nInvalid Option!";
+            }
+            clearScreen();
+        } while (choice != 7);
+    }
+
+    void addBook() {
+        clearScreen();
+        cout << "\n********** Add New Book **********\n";
+
+        string name, author;
+        int id, quantity;
+
+        cout << "Enter Book Name: ";
+        getline(cin, name);
+        if (name == "/b") return;
+
+        cout << "Enter Author Name: ";
+        getline(cin, author);
+        if (author == "/b") return;
+
+        cout << "Enter Book ID: ";
+        cin >> id;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            if (cin.peek()=='/') {
+                string temp;
+                getline(cin, temp);
+                if (temp == "b" || temp == "/b") return;
+            }
+            cout << "\nInvalid input for Book ID.";
+            waitForKey();
+            return;
+        }
+        cin.ignore();
+
+
+        if (findBookById(id) != nullptr) {
+            cout << "\nBook with ID " << id << " already exists.";
+            return;
+        }
+
+        cout << "Enter Quantity: ";
+        cin >> quantity;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            if (cin.peek()=='/') {
+                string temp;
+                getline(cin, temp);
+                if (temp == "b" || temp == "/b") return;
+            }
+            cout << "\nInvalid input for Quantity.";
+            waitForKey();
+            return;
+        }
+        cin.ignore();
+
+
+        books.push_back(Book(name, author, id, quantity));
+        cout << "\nBook added successfully!";
+        sort(books.begin(), books.end(), [](const Book& a, const Book& b) { return a.id < b.id; });
+    }
+
+    void removeBook() {
+        clearScreen();
+        cout << "\n********** Remove Book **********\n";
+
+
+        cout << "\nList of Books:\n";
+        for (const auto& book : books) {
+            cout << "Book ID: " << book.id << " - " << book.name << " by " << book.author << " (Quantity: " << book.quantity << ")\n";
+        }
+
+        cout << "\nEnter Book ID to remove: ";
+        int id, quantityToRemove;
+        cin >> id;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            if (cin.peek()=='/') {
+                string temp;
+                getline(cin, temp);
+                if (temp == "b" || temp == "/b") return;
+            }
+            cout << "\nInvalid input for Book ID.";
+            waitForKey();
+            return;
+        }
+        cin.ignore();
+
+
+        Book* bookToRemove = findBookById(id);
+        if (bookToRemove == nullptr) {
+            cout << "\nBook ID not found.";
+            return;
+        }
+         if (bookToRemove->borrowedCount > 0) {
+            cout << "\nCannot completely remove Book ID " << id << " because " << bookToRemove->borrowedCount << " copies are currently borrowed.";
+            cout << "\nYou can only remove copies that are currently in the library.";
+             waitForKey();
+            return;
+        }
+
+
+        cout << "Enter Quantity to remove: ";
+        cin >> quantityToRemove;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            if (cin.peek()=='/') {
+                string temp;
+                getline(cin, temp);
+                if (temp == "b" || temp == "/b") return;
+            }
+            cout << "\nInvalid input for Quantity.";
+            waitForKey();
+            return;
+        }
+        cin.ignore();
+
+
+        if (quantityToRemove <= 0) {
+            cout << "\nQuantity to remove must be greater than 0.";
+            return;
+        }
+        int removableQuantity = bookToRemove->quantity - bookToRemove->borrowedCount;
+        if (quantityToRemove > removableQuantity) {
+            cout << "\nCannot remove more books than available quantity in library. Maximum removable quantity is " << removableQuantity << ".";
+            return;
+        }
+
+
+        bookToRemove->quantity -= quantityToRemove;
+        cout << "\nRemoved " << quantityToRemove << " copies of Book ID " << id << " successfully.";
+
+        if (bookToRemove->quantity == 0) {
+            string confirmDeleteStr;
+            char confirmDelete;
+            while (true) {
+                cout << "\nQuantity is now 0. Do you want to completely delete the book from the system? (y/n): ";
+                getline(cin, confirmDeleteStr);
+                if (confirmDeleteStr.length() == 1) {
+                    confirmDelete = tolower(confirmDeleteStr[0]);
+                    if (confirmDelete == 'y' || confirmDelete == 'n') {
+                        break;
+                    }
+                }
+                cout << "\nInvalid input. Please enter 'y' or 'n'.";
+                waitForKey();
+            }
+
+
+            if (confirmDelete == 'y') {
+                books.erase(remove_if(books.begin(), books.end(), [id](const Book& b) {
+                    return b.id == id;
+                }), books.end());
+                cout << "\nBook ID " << id << " completely removed from the system.";
+            } else {
+                cout << "\nBook ID " << id << " remains in the system with quantity 0.";
+            }
+        }
+    }
+
+    void viewBooks() {
+        clearScreen();
+        cout << "\n********** List of Books **********\n";
+
+        if (books.empty()) {
+            cout << "\nNo books in the library.";
+            return;
+        }
+        sort(books.begin(), books.end(), [](const Book& a, const Book& b) { return a.id < b.id; });
+        for (const auto& book : books) {
+            cout << "Book ID: " << book.id << " - " << book.name << " by " << book.author
+                 << " - Quantity: " << book.quantity << " - Available: " << book.availableQuantity() << "\n";
+        }
+    }
+    void viewAvailableBooks() {
+        clearScreen();
+        cout << "\n********** List of Available Books **********\n";
+
+        if (books.empty()) {
+            cout << "\nNo books are in the library.";
+            return;
+        }
+        bool availableBooks = false;
+        sort(books.begin(), books.end(), [](const Book& a, const Book& b) { return a.id < b.id; });
+        for (const auto& book : books) {
+            if (book.availableQuantity() > 0) {
+                cout << "Book ID: " << book.id << " - " << book.name << " by " << book.author
+                     << " - Available: " << book.availableQuantity() << "\n";
+                availableBooks = true;
+            }
+        }
+        if (!availableBooks) {
+            cout << "\nNo books are available at the moment.";
+        }
+    }
+
+
+    void viewUsers() {
+        displayStudentRecords();
+    }
+
+    void viewLoginHistory() {
+        clearScreen();
+        cout << "\n********** Login History **********\n";
+
+        if (loginHistory.empty()) {
+            cout << "\nNo users have logged in yet.";
+            return;
+        }
+        for (const auto& record : loginHistory) {
+            cout << "User: " << record.first << " - User ID: " << record.second << "\n";
+        }
+    }
+
+
+    void borrowBook() {
+        clearScreen();
+        cout << "\n********** Available Books **********\n";
+
+
+        bool availableBooks = false;
+        for (const auto& book : books) {
+            if (!book.isBorrowed()) {
+                cout << "Book ID: " << book.id << " - " << book.name << " by " << book.author << " (Available: " << book.availableQuantity() << ")\n";
+                availableBooks = true;
+            }
+        }
+        if (!availableBooks) {
+            cout << "\nNo books are currently available to borrow.";
+            return;
+        }
+
+        cout << "\nEnter Book ID to borrow: ";
+        int id;
+        cin >> id;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            if (cin.peek()=='/') {
+                string temp;
+                getline(cin, temp);
+                if (temp == "b" || temp == "/b") return;
+            }
+            cout << "\nInvalid input for Book ID.";
+            waitForKey();
+            return;
+        }
+        cin.ignore();
+
+        Book* bookToBorrow = findBookById(id);
+
+        if (bookToBorrow != nullptr && !bookToBorrow->isBorrowed()) {
+            students.push_back(Student(loggedInUser, loggedInId, id));
+            bookToBorrow->borrowedCount++;
+            cout << "\nBook borrowed successfully!";
+        } else {
+            cout << "\nBook unavailable or invalid ID or no available copies.";
+        }
+    }
+
+    void returnBook() {
+        clearScreen();
+        cout << "\nEnter Book ID to return: ";
+        int id;
+        cin >> id;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            if (cin.peek()=='/') {
+                string temp;
+                getline(cin, temp);
+                if (temp == "b" || temp == "/b") return;
+            }
+            cout << "\nInvalid input for Book ID.";
+            waitForKey();
+            return;
+        }
+        cin.ignore();
+
+        Book* bookToReturn = findBookById(id);
+        auto stuIt = find_if(students.begin(), students.end(), [id, this](const Student& s) {
+            return s.bookId == id && s.studentId == loggedInId && !s.returned;
+        });
+
+        if (bookToReturn != nullptr && stuIt != students.end()) {
+            bookToReturn->borrowedCount--;
+            stuIt->returned = true;
+            cout << "\nBook returned successfully!";
+
+            if (!bookToReturn->reservationQueue.empty()) {
+                int nextStudent = bookToReturn->reservationQueue.front();
+                bookToReturn->reservationQueue.pop();
+                students.push_back(Student("Reserved Student", nextStudent, id));
+                bookToReturn->borrowedCount++;
+                cout << "\nBook reserved for Student ID " << nextStudent << " is now borrowed.";
+            }
+        } else {
+            cout << "\nInvalid Book ID or you are not the borrower or book already returned.";
+        }
+    }
+
+    void displayStudentRecords() {
+        clearScreen();
+        cout << "\n********** Student Records (Currently Borrowed Books) **********\n";
+
+        bool recordsFound = false;
+        for (const auto& s : students) {
+            if (!s.returned) {
+                cout << "Name: " << s.name << " - Student ID: " << s.studentId << " - Book ID: " << s.bookId << "\n";
+                recordsFound = true;
+            }
+        }
+        if (!recordsFound) {
+            cout << "\nNo student records found for currently borrowed books.";
+        }
+    }
+
+
+    void reserveBook() {
+        clearScreen();
+        cout << "\nEnter Book ID to reserve: ";
+        int id;
+        cin >> id;
+        if (cin.fail()) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            if (cin.peek()=='/') {
+                string temp;
+                getline(cin, temp);
+                if (temp == "b" || temp == "/b") return;
+            }
+            cout << "\nInvalid input for Book ID.";
+            waitForKey();
+            return;
+        }
+        cin.ignore();
+
+        Book* bookToReserve = findBookById(id);
+
+        if (bookToReserve != nullptr && bookToReserve->isBorrowed()) {
+            bookToReserve->reservationQueue.push(loggedInId);
+            cout << "\nBook reserved successfully!";
+        } else {
+            cout << "\nInvalid Book ID or book is available (no need to reserve).";
+        }
+    }
+};
+
+int main() {
+    LibraryManagementSystem library;
+    library.login();
+    while(true) {
+        library.mainMenu();
+    }
+    return 0;
+}
